@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Hide Next.js Dev Indicator */
+#nextjs-portal, 
+[data-nextjs-toast], 
+[data-nextjs-dialog-overlay],
+#nextjs-dev-indicator,
+.nextjs-static-indicator,
+[data-nextjs-static-indicator],
+nextjs-portal {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

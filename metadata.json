@@ -1,0 +1,5 @@
+{
+  "name": "Kardex KHIPU",
+  "description": "Sistema avanzado de control de inventarios y Kardex con métodos PEPS y Promedio Ponderado conforme a normativa SUNAT.",
+  "requestFramePermissions": []
+}
