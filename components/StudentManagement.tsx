@@ -174,18 +174,18 @@ export default function StudentManagement() {
       const wb = XLSX.read(buffer, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<{
-        USERNAME: string;
-        PASSWORD: string;
-        'NOMBRE COMPLETO': string;
-        'ROL (STUDENT / ADMIN)': string;
+        username: string;
+        password: string;
+        fullName: string;
+        role: string;
       }>(ws, { defval: '' });
 
       // Filter out example/empty rows
       const validRows = rows.filter(r =>
-        r.USERNAME && r.USERNAME.trim() !== '' &&
-        r.USERNAME.trim() !== 'juan.perez' &&
-        r.USERNAME.trim() !== 'maria.garcia' &&
-        r.USERNAME.trim() !== 'carlos.admin'
+        r.username && r.username.trim() !== '' &&
+        r.username.trim() !== 'juan.perez' &&
+        r.username.trim() !== 'maria.garcia' &&
+        r.username.trim() !== 'carlos.admin'
       );
 
       if (validRows.length === 0) {
@@ -198,16 +198,15 @@ export default function StudentManagement() {
       let errors = 0;
 
       for (const row of validRows) {
-        const role = row['ROL (STUDENT / ADMIN)']?.toUpperCase().trim();
         const res = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: crypto.randomUUID(),
-            username: row.USERNAME.trim(),
-            password: row.PASSWORD?.trim() || 'khipu123',
-            fullName: row['NOMBRE COMPLETO']?.trim() || row.USERNAME.trim(),
-            role: role === 'ADMIN' ? 'ADMIN' : 'STUDENT',
+            username: row.username.trim(),
+            password: row.password?.trim() || 'khipu123',
+            fullName: row.fullName?.trim() || row.username.trim(),
+            role: row.role?.toUpperCase().trim() === 'ADMIN' ? 'ADMIN' : 'STUDENT',
             createdAt: Date.now()
           }),
         });
@@ -262,6 +261,14 @@ export default function StudentManagement() {
               onChange={handleExcelUpload}
               className="hidden"
             />
+            
+              href="/Plantilla_CargaMasiva_Kardex.xlsx"
+              download
+              className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-green-600 hover:text-white transition-all uppercase tracking-widest"
+            >
+              <FileSpreadsheet size={14} />
+              Descargar_Plantilla
+            </a>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-[#2B579A] hover:text-white transition-all uppercase tracking-widest"
