@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
+import * as XLSX from 'xlsx';
 import {
   Users,
   UserPlus,
@@ -11,7 +12,8 @@ import {
   Shield,
   CheckCircle2,
   AlertCircle,
-  Pencil
+  Pencil,
+  FileSpreadsheet
 } from 'lucide-react';
 import { StudentUser } from '@/lib/types';
 
@@ -37,6 +39,7 @@ export default function StudentManagement() {
   }>({ username: '', password: '', fullName: '', role: 'STUDENT' });
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchUsers = async () => {
     try {
@@ -157,36 +160,72 @@ export default function StudentManagement() {
     }
   };
 
-  const simulateMassiveUpload = async () => {
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (currentUser?.role === 'STUDENT') {
       alert('Error: El rol de estudiante no tiene permisos para realizar carga masiva.');
       return;
     }
-    const jsonInput = prompt('Pegue aquí la lista en formato JSON:\nEjemplo: [{"username":"user01", "password":"123", "fullName":"Juan Perez"}]');
-    if (!jsonInput) return;
+
+    const file = e.target.files?.[0];
+    if (!file) return;
 
     try {
-      const parsed = JSON.parse(jsonInput);
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: crypto.randomUUID(),
-              username: item.username || `user_${Math.random().toString(36).substring(2, 7)}`,
-              password: item.password || 'khipu123',
-              fullName: item.fullName || 'Nuevo Operador',
-              role: 'STUDENT',
-              createdAt: Date.now()
-            }),
-          });
-        }
-        await fetchUsers();
-        alert(`${parsed.length} operadores cargados exitosamente.`);
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<{
+        USERNAME: string;
+        PASSWORD: string;
+        'NOMBRE COMPLETO': string;
+        'ROL (STUDENT / ADMIN)': string;
+      }>(ws, { defval: '' });
+
+      // Filter out example/empty rows
+      const validRows = rows.filter(r =>
+        r.USERNAME && r.USERNAME.trim() !== '' &&
+        r.USERNAME.trim() !== 'juan.perez' &&
+        r.USERNAME.trim() !== 'maria.garcia' &&
+        r.USERNAME.trim() !== 'carlos.admin'
+      );
+
+      if (validRows.length === 0) {
+        setMsg({ text: 'No se encontraron usuarios válidos en el archivo.', type: 'error' });
+        setTimeout(() => setMsg({ text: '', type: '' }), 4000);
+        return;
       }
+
+      let created = 0;
+      let errors = 0;
+
+      for (const row of validRows) {
+        const role = row['ROL (STUDENT / ADMIN)']?.toUpperCase().trim();
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: crypto.randomUUID(),
+            username: row.USERNAME.trim(),
+            password: row.PASSWORD?.trim() || 'khipu123',
+            fullName: row['NOMBRE COMPLETO']?.trim() || row.USERNAME.trim(),
+            role: role === 'ADMIN' ? 'ADMIN' : 'STUDENT',
+            createdAt: Date.now()
+          }),
+        });
+        if (res.ok) created++;
+        else errors++;
+      }
+
+      await fetchUsers();
+      setMsg({
+        text: `${created} usuario(s) cargado(s) correctamente${errors > 0 ? `. ${errors} error(es) omitidos.` : '.'}`,
+        type: created > 0 ? 'success' : 'error'
+      });
+      setTimeout(() => setMsg({ text: '', type: '' }), 5000);
     } catch {
-      alert('Error en el formato del JSON.');
+      setMsg({ text: 'Error al leer el archivo Excel. Verifique el formato.', type: 'error' });
+      setTimeout(() => setMsg({ text: '', type: '' }), 4000);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -215,12 +254,20 @@ export default function StudentManagement() {
         </div>
         {currentUser?.role !== 'STUDENT' && (
           <div className="flex gap-3">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleExcelUpload}
+              className="hidden"
+            />
             <button
-              onClick={simulateMassiveUpload}
+              onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-[#2B579A] hover:text-white transition-all uppercase tracking-widest"
             >
-              <Upload size={14} />
-              Carga_Masiva_JSON
+              <FileSpreadsheet size={14} />
+              Carga_Masiva_Excel
             </button>
             <button
               onClick={() => setShowAddModal(true)}
