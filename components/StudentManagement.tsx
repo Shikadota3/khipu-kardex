@@ -255,20 +255,17 @@ export default function StudentManagement() {
           <div className="flex gap-3">
             {/* Hidden file input */}
             <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleExcelUpload}
-              className="hidden"
-            />
-            
-              href="/Plantilla_CargaMasiva_Kardex.xlsx"
-              download
-              className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-green-600 hover:text-white transition-all uppercase tracking-widest"
-            >
-              <FileSpreadsheet size={14} />
-              Descargar_Plantilla
-            </a>
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleExcelUpload}
+            className="hidden"
+          />
+
+          <a href="/Plantilla_CargaMasiva_Kardex.xlsx" download className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-green-600 hover:text-white transition-all uppercase tracking-widest">
+            <FileSpreadsheet size={14} />
+            Descargar_Plantilla
+          </a>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-6 py-3 border border-[#DEE2E6] bg-white text-[#333] text-[9px] font-sans font-bold hover:bg-[#2B579A] hover:text-white transition-all uppercase tracking-widest"
