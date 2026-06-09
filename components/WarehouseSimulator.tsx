@@ -29,7 +29,10 @@ import {
   User,
   Upload,
   Users,
-  LogOut
+  LogOut,
+  Shield,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -233,6 +236,14 @@ export default function WarehouseSimulator() {
   const [showMovementReportModal, setShowMovementReportModal] = useState(false);
   const [showLowMovementModal, setShowLowMovementModal] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+  // Auth admin para ajustes
+  const [showAdminAuthModal, setShowAdminAuthModal] = useState(false);
+  const [adminAuthUser, setAdminAuthUser] = useState('');
+  const [adminAuthPass, setAdminAuthPass] = useState('');
+  const [adminAuthError, setAdminAuthError] = useState('');
+  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
+  const [showAdminAuthPass, setShowAdminAuthPass] = useState(false);
+  const [pendingAjuste, setPendingAjuste] = useState(false);
 
   // --- LÓGICA DE RESUMEN MENSUAL ---
   const resumenMensual = React.useMemo(() => {
@@ -834,7 +845,40 @@ export default function WarehouseSimulator() {
     doc.text('KHIPUKARDEX - SISTEMA DE CONTROL DE EXISTENCIAS', pageWidth / 2, 285, { align: 'center' });
     doc.save(`Comprobante_${nuevaOperacion.serie}_${nuevaOperacion.numero}.pdf`);
   };
+  const verificarAdminYAjustar = () => {
+  if (currentUser?.role === 'ADMIN') {
+    ejecutarAjusteAutomatico();
+    return;
+  }
+  setPendingAjuste(true);
+  setAdminAuthUser('');
+  setAdminAuthPass('');
+  setAdminAuthError('');
+  setShowAdminAuthModal(true);
+};
 
+const confirmarAdminAuth = async () => {
+  setAdminAuthLoading(true);
+  setAdminAuthError('');
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: adminAuthUser, password: adminAuthPass }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.user?.role !== 'ADMIN') {
+      setAdminAuthError('Credenciales inválidas o sin permisos de administrador.');
+      return;
+    }
+    setShowAdminAuthModal(false);
+    if (pendingAjuste) ejecutarAjusteAutomatico();
+  } catch {
+    setAdminAuthError('Error de conexión.');
+  } finally {
+    setAdminAuthLoading(false);
+  }
+};
   const ejecutarAjusteAutomatico = () => {
     const opsParaAsentar: OperacionKardex[] = [];
     const correlativo = adjustmentNumero || Math.floor(100000 + Math.random() * 900000).toString();
@@ -1331,7 +1375,7 @@ export default function WarehouseSimulator() {
   return (
     <div className="flex h-screen overflow-hidden bg-white text-[#333] selection:bg-[#2B579A] selection:text-white">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#F8F9FA] border-r border-[#DEE2E6] flex flex-col p-0 shadow-sm z-10">
+      <aside className="hidden md:flex w-64 bg-[#F8F9FA] border-r border-[#DEE2E6] flex flex-col p-0 shadow-sm z-10">
         <div className="flex items-center justify-center p-6 mb-2">
           <Image src="/logokhip.png" alt="Logo Khipu" width={200} height={80} priority className="object-contain" />
           <div className="text-center mt-2"></div>
@@ -1380,7 +1424,7 @@ export default function WarehouseSimulator() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative bg-white flex flex-col">
+      <main className="flex-1 overflow-y-auto w-full relative bg-white flex flex-col">
         {/* Top Bar */}
         <div className="h-16 border-b border-[#DEE2E6] flex items-center justify-between px-12 bg-white sticky top-0 z-20">
           <div className="flex items-center gap-6">
@@ -2110,9 +2154,9 @@ export default function WarehouseSimulator() {
               <div className="p-8 overflow-y-auto flex-1 space-y-6">
                 <div className="bg-orange-50/50 border border-orange-200/60 p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Serie del Ajuste</label><input type="text" value={adjustmentSerie} onChange={(e) => setAdjustmentSerie(e.target.value.toUpperCase())} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-mono px-3 py-2 text-xs focus:outline-none" /></div>
-                  <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Número de Comprobante</label><input type="text" value={adjustmentNumero} onChange={(e) => setAdjustmentNumero(e.target.value)} placeholder="Autogenerado" className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-mono px-3 py-2 text-xs focus:outline-none" /></div>
+                  <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">N° Comprobante</label><input type="text" value={adjustmentNumero} onChange={(e) => setAdjustmentNumero(e.target.value)} placeholder="Autogenerado" className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-mono px-3 py-2 text-xs focus:outline-none" /></div>
                   <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Fecha de Operación</label><input type="date" value={adjustmentFecha} onChange={(e) => setAdjustmentFecha(e.target.value)} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] px-3 py-2 text-xs focus:outline-none" /></div>
-                  <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Observaciones</label><input type="text" value={adjustmentObs} onChange={(e) => setAdjustmentObs(e.target.value)} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] px-3 py-2 text-xs focus:outline-none" /></div>
+                  <div><label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Motivo del Ajuste <span className="text-red-500">*</span></label><input type="text" value={adjustmentObs} onChange={(e) => setAdjustmentObs(e.target.value)} placeholder="Ej: Conteo físico mensual, merma detectada..." className="w-full bg-white border border-orange-300 text-[#1A1A1A] px-3 py-2 text-xs focus:outline-none focus:border-orange-500" /></div>
                 </div>
                 <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#999]" size={14} /><input type="text" placeholder="Filtrar por código o nombre para auditar..." value={filterAdjustmentSearch} onChange={(e) => setFilterAdjustmentSearch(e.target.value)} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-sans rounded-none pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-[#2B579A]" /></div>
                 <div className="border border-[#DEE2E6] overflow-x-auto">
@@ -2152,14 +2196,55 @@ export default function WarehouseSimulator() {
                 </div>
                 <div className="flex gap-4">
                   <button onClick={() => setShowAdjustmentModal(false)} className="px-6 py-4 border border-[#DEE2E6] bg-white text-[#999] hover:bg-gray-50 text-[10px] uppercase font-bold tracking-widest transition-all">CERRAR</button>
-                  <button onClick={ejecutarAjusteAutomatico} className="px-8 py-4 bg-orange-600 hover:bg-orange-700 text-white text-[10px] uppercase font-bold tracking-widest transition-all shadow-md hover:scale-[1.02] active:scale-[0.98]">PROCESAR AJUSTES AUTOMÁTICOS</button>
+                  <button onClick={verificarAdminYAjustar} className="px-8 py-4 bg-orange-600 hover:bg-orange-700 text-white text-[10px] uppercase font-bold tracking-widest transition-all shadow-md hover:scale-[1.02] active:scale-[0.98]">PROCESAR AJUSTES AUTOMÁTICOS</button>
                 </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
+        {showAdminAuthModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[80] p-6">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white border border-[#DEE2E6] p-10 max-w-sm w-full shadow-2xl rounded-none relative">
+              <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#F97316]"></div>
+              <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[#F97316]"></div>
+              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#F97316]"></div>
+              <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#F97316]"></div>
+              <div className="w-14 h-14 border border-orange-100 bg-orange-50 text-[#F97316] flex items-center justify-center mb-6 mx-auto">
+                <Shield size={28} />
+              </div>
+              <h3 className="text-xl font-sans font-bold tracking-tighter text-[#1A1A1A] uppercase text-center mb-2">Autorización Requerida</h3>
+              <p className="text-[10px] text-[#999] uppercase tracking-widest text-center mb-8 font-bold">Se requieren credenciales de administrador para procesar ajustes de inventario</p>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-[9px] font-bold text-[#999] uppercase tracking-widest mb-2">Usuario Admin</label>
+                  <input type="text" value={adminAuthUser} onChange={(e) => setAdminAuthUser(e.target.value)} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-4 py-3 text-sm focus:outline-none focus:border-[#2B579A] text-black" placeholder="admin" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold text-[#999] uppercase tracking-widest mb-2">Contraseña</label>
+                  <div className="relative">
+                    <input type={showAdminAuthPass ? 'text' : 'password'} value={adminAuthPass} onChange={(e) => setAdminAuthPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmarAdminAuth()} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-4 py-3 pr-10 text-sm focus:outline-none focus:border-[#2B579A] text-black" placeholder="••••••••" />
+                    <button type="button" onClick={() => setShowAdminAuthPass(!showAdminAuthPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#333]">
+                      {showAdminAuthPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+                {adminAuthError && (
+                  <div className="bg-red-50 border border-red-200 p-3 flex items-center gap-2">
+                    <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                    <p className="text-red-600 text-[10px] font-bold uppercase">{adminAuthError}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-4 mt-8">
+                <button onClick={() => { setShowAdminAuthModal(false); setPendingAjuste(false); }} className="flex-1 py-3 border border-[#DEE2E6] text-[#999] font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
+                <button onClick={confirmarAdminAuth} disabled={adminAuthLoading || !adminAuthUser || !adminAuthPass} className={`flex-1 py-3 text-white font-bold text-[10px] uppercase tracking-widest transition-all ${adminAuthLoading || !adminAuthUser || !adminAuthPass ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#F97316] hover:bg-[#EA580C]'}`}>
+                  {adminAuthLoading ? 'Verificando...' : 'Autorizar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       {/* Loading overlay */}
       {loadingData && (
         <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-[100]">
