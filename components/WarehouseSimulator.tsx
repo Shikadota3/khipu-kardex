@@ -245,6 +245,14 @@ export default function WarehouseSimulator() {
   const [adminAuthLoading, setAdminAuthLoading] = useState(false);
   const [showAdminAuthPass, setShowAdminAuthPass] = useState(false);
   const [pendingAjuste, setPendingAjuste] = useState(false);
+  const [editingMovement, setEditingMovement] = useState<OperacionKardex | null>(null);
+  const [editMotivo, setEditMotivo] = useState('');
+  const [showEditMovementModal, setShowEditMovementModal] = useState(false);
+  const [editAdminUser, setEditAdminUser] = useState('');
+  const [editAdminPass, setEditAdminPass] = useState('');
+  const [editAdminError, setEditAdminError] = useState('');
+  const [editAdminLoading, setEditAdminLoading] = useState(false);
+  const [showEditAdminPass, setShowEditAdminPass] = useState(false);
 
   // --- LÓGICA DE RESUMEN MENSUAL ---
   const resumenMensual = React.useMemo(() => {
@@ -481,10 +489,10 @@ export default function WarehouseSimulator() {
       } catch (err) {
         console.error('Error cargando datos:', err);
       }
-      const savedMethod = localStorage.getItem(`kardex_method_${currentUser.id}`);
-      const savedEmpresa = localStorage.getItem(`kardex_empresa_${currentUser.id}`);
-      if (savedMethod) setProtocoloActivo(savedMethod as ProtocoloValuacion);
-      if (savedEmpresa) setEmpresaConfig(JSON.parse(savedEmpresa));
+      const configRes = await fetch(`/api/config?userId=${currentUser.id}`);
+      const configData = await configRes.json();
+      if (configData.valuationMethod) setProtocoloActivo(configData.valuationMethod as ProtocoloValuacion);
+      if (configData.empresaConfig) setEmpresaConfig(configData.empresaConfig);
       setDataLoaded(true);
       setMounted(true);
       setLoadingData(false);
@@ -495,7 +503,11 @@ export default function WarehouseSimulator() {
   // --- GUARDAR MÉTODO DE VALUACIÓN EN LOCALSTORAGE (solo config, no datos) ---
   useEffect(() => {
     if (mounted && dataLoaded && currentUser) {
-      localStorage.setItem(`kardex_method_${currentUser.id}`, protocoloActivo);
+      fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, valuationMethod: protocoloActivo })
+    }).catch(err => console.error('Error guardando método:', err));
     }
   }, [protocoloActivo, mounted, dataLoaded, currentUser]);
 
@@ -503,7 +515,11 @@ export default function WarehouseSimulator() {
     const config = { ...data, configurada: true };
     setEmpresaConfig(config);
     const key = currentUser?.id || 'invitado';
-    localStorage.setItem(`kardex_empresa_${key}`, JSON.stringify(config));
+    fetch('/api/config', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ userId: key, empresaConfig: config })
+}).catch(err => console.error('Error guardando empresa:', err));
   };
 
   useEffect(() => {
@@ -618,8 +634,7 @@ export default function WarehouseSimulator() {
     }
 
     if (!esKardexVacio) {
-      const savedMethod = localStorage.getItem(`kardex_method_${currentUser?.id}`);
-      if (savedMethod && savedMethod !== protocoloActivo) {
+      if (protocoloActivo && protocoloActivo !== 'PROMEDIO') {
         alert("Error KH-04: Protocolo de Valuación bloqueado. No se permiten cambios con operaciones existentes.");
         return;
       }
@@ -847,8 +862,8 @@ export default function WarehouseSimulator() {
     doc.save(`Comprobante_${nuevaOperacion.serie}_${nuevaOperacion.numero}.pdf`);
   };
   const verificarAdminYAjustar = () => {
-  if (currentUser?.role === 'ADMIN') {
-    ejecutarAjusteAutomatico();
+  if (!adjustmentObs.trim()) {
+    alert("El campo 'Motivo del Ajuste' es obligatorio antes de procesar.");
     return;
   }
   setPendingAjuste(true);
@@ -909,7 +924,7 @@ const confirmarAdminAuth = async () => {
           cantidad: cantidadAbs,
           costoUnitario,
           costoTotal: Number((cantidadAbs * costoUnitario).toFixed(4)),
-          observaciones: `${adjustmentObs} [${diferencia > 0 ? 'SOBRANTE' : 'FALTANTE'}]`,
+          observaciones: `AJUSTE ${adjustmentFecha} — ${adjustmentObs} [${diferencia > 0 ? 'SOBRANTE' : 'FALTANTE'}]`,
           createdAt: Date.now()
         });
       }
@@ -1382,6 +1397,47 @@ const confirmarAdminAuth = async () => {
     reader.readAsArrayBuffer(file);
     e.target.value = '';
   };
+  const guardarEdicionMovimiento = async () => {
+    if (!editMotivo.trim()) {
+      setEditAdminError('El motivo de edición es obligatorio.');
+      return;
+    }
+    setEditAdminLoading(true);
+    setEditAdminError('');
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: editAdminUser, password: editAdminPass }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.user?.role !== 'ADMIN') {
+        setEditAdminError('Credenciales inválidas o sin permisos de administrador.');
+        setEditAdminLoading(false);
+        return;
+      }
+      if (!editingMovement) return;
+      const updatedOp = {
+        ...editingMovement,
+        observaciones: `EDITADO ${format(new Date(), 'yyyy-MM-dd')} — ${editMotivo} | ${editingMovement.observaciones || ''}`
+      };
+      fetch('/api/movements', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updatedOp, userId: currentUser?.id })
+      }).catch(err => console.error('Error editando movimiento:', err));
+      setBitacoraOperaciones(prev => prev.map(m => m.id === updatedOp.id ? updatedOp : m));
+      setShowEditMovementModal(false);
+      setEditingMovement(null);
+      setEditMotivo('');
+      setEditAdminUser('');
+      setEditAdminPass('');
+    } catch {
+      setEditAdminError('Error de conexión.');
+    } finally {
+      setEditAdminLoading(false);
+    }
+  };
 
   // --- RENDERIZADO DEL SISTEMA PRINCIPAL ---
   return (
@@ -1744,6 +1800,7 @@ const confirmarAdminAuth = async () => {
                           <th colSpan={3} className="px-4 py-3 text-center border-r border-[#DEE2E6] bg-orange-50">Registro_Salida</th>
                           <th colSpan={3} className="px-4 py-3 text-center bg-[#2B579A]/5 border-r border-[#DEE2E6]">Estado_Saldo</th>
                           <th rowSpan={2} className="px-4 py-4 text-center">Observaciones</th>
+                          <th rowSpan={2} className="px-4 py-4 text-center">Acc.</th>
                         </tr>
                         <tr className="border-t border-[#DEE2E6] bg-gray-50">
                           <th className="px-4 py-3 border-r border-[#DEE2E6] text-[7px]">Tipo</th><th className="px-4 py-3 border-r border-[#DEE2E6] text-[7px]">Serie</th><th className="px-4 py-3 border-r border-[#DEE2E6] text-[7px]">Número</th>
@@ -1774,6 +1831,18 @@ const confirmarAdminAuth = async () => {
                               <td className="px-4 py-4 border-r border-[#DEE2E6] bg-[#2B579A]/5 text-[#2B579A]/70 text-center">{line.costoUnitarioSaldo.toFixed(4)}</td>
                               <td className="px-4 py-4 border-r border-[#DEE2E6] bg-[#2B579A]/5 text-[#2B579A] font-bold text-center">{line.costoTotalSaldo.toFixed(2)}</td>
                               <td className="px-4 py-4 text-[#999] italic max-w-[150px] truncate" title={line.observaciones}>{line.observaciones || '-'}</td>
+                              <td className="px-4 py-4 text-center">
+                                <button
+                                  onClick={() => {
+                                    const op = bitacoraOperaciones.find(m => m.activoId === activoSeleccionadoId && m.fecha === line.fecha && m.serie === line.serie && m.numero === line.numero);
+                                    if (op) { setEditingMovement({...op}); setEditMotivo(''); setEditAdminUser(''); setEditAdminPass(''); setEditAdminError(''); setShowEditMovementModal(true); }
+                                  }}
+                                  className="text-[#999] hover:text-[#2B579A] p-1 transition-colors"
+                                  title="Editar movimiento"
+                                >
+                                  <Settings size={13} />
+                                </button>
+                              </td>
                             </tr>
                           ))
                         ) : (
@@ -2075,6 +2144,18 @@ const confirmarAdminAuth = async () => {
                           <input type="text" placeholder="Serie (ej. F001)" value={nuevaOperacion.serie} onChange={(e) => setNuevaOperacion({...nuevaOperacion, serie: e.target.value})} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-sans px-3 py-2 text-[11px] focus:outline-none" />
                           <input type="text" placeholder="Número" value={nuevaOperacion.numero} onChange={(e) => setNuevaOperacion({...nuevaOperacion, numero: e.target.value})} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-sans px-3 py-2 text-[11px] focus:outline-none" />
                         </div>
+                        {nuevaOperacion.tipoDocumento === '00' && nuevaOperacion.serie === 'AJUS' && (
+                        <div>
+                          <label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Motivo del Ajuste <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            value={nuevaOperacion.observaciones || ''}
+                            onChange={(e) => setNuevaOperacion({...nuevaOperacion, observaciones: `AJUSTE ${nuevaOperacion.fecha} — ${e.target.value}`})}
+                            placeholder="Describa el motivo del ajuste..."
+                            className="w-full bg-white border border-orange-300 text-[#1A1A1A] font-sans px-3 py-2 text-[11px] focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                      )}
                         <div className="grid grid-cols-2 gap-3 pt-2">
                           <button onClick={() => setNuevaOperacion({...nuevaOperacion, tipo: 'ENTRADA'})} disabled={stagedItems.length > 0} className={`py-2 rounded-none text-[9px] font-bold tracking-widest border transition-all ${nuevaOperacion.tipo === 'ENTRADA' ? 'bg-[#E7EEF8] border-[#2B579A] text-[#2B579A]' : 'bg-white border-[#DEE2E6] text-[#999]'} ${stagedItems.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>ENTRADA</button>
                           <button onClick={() => setNuevaOperacion({...nuevaOperacion, tipo: 'SALIDA'})} disabled={stagedItems.length > 0} className={`py-2 rounded-none text-[9px] font-bold tracking-widest border transition-all ${nuevaOperacion.tipo === 'SALIDA' ? 'bg-orange-50 border-[#F97316] text-[#F97316]' : 'bg-white border-[#DEE2E6] text-[#999]'} ${stagedItems.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>SALIDA</button>
@@ -2262,6 +2343,66 @@ const confirmarAdminAuth = async () => {
             </motion.div>
           </motion.div>
         )}
+      {showEditMovementModal && editingMovement && (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[80] p-6">
+    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white border border-[#DEE2E6] p-10 max-w-lg w-full shadow-2xl rounded-none relative">
+      <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#2B579A]"></div>
+      <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[#2B579A]"></div>
+      <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#2B579A]"></div>
+      <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#2B579A]"></div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h3 className="text-xl font-sans font-bold tracking-tighter text-[#1A1A1A] uppercase">Editar Movimiento</h3>
+          <p className="text-[10px] text-[#999] uppercase tracking-widest font-bold mt-1">{editingMovement.serie}-{editingMovement.numero} | {editingMovement.fecha}</p>
+        </div>
+        <button onClick={() => setShowEditMovementModal(false)} className="p-2 border border-[#DEE2E6] text-[#999] hover:text-[#2B579A]"><X size={18} /></button>
+      </div>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Fecha</label><input type="date" value={editingMovement.fecha} onChange={(e) => setEditingMovement({...editingMovement, fecha: e.target.value})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Tipo Doc</label><input type="text" value={editingMovement.tipoDocumento} onChange={(e) => setEditingMovement({...editingMovement, tipoDocumento: e.target.value})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Serie</label><input type="text" value={editingMovement.serie} onChange={(e) => setEditingMovement({...editingMovement, serie: e.target.value})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Número</label><input type="text" value={editingMovement.numero} onChange={(e) => setEditingMovement({...editingMovement, numero: e.target.value})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Cantidad</label><input type="number" value={editingMovement.cantidad} onChange={(e) => setEditingMovement({...editingMovement, cantidad: parseFloat(e.target.value) || 0})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+          <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Costo Unitario</label><input type="number" step="0.0001" value={editingMovement.costoUnitario} onChange={(e) => setEditingMovement({...editingMovement, costoUnitario: parseFloat(e.target.value) || 0, costoTotal: (parseFloat(e.target.value) || 0) * editingMovement.cantidad})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
+        </div>
+        <div>
+          <label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Motivo de Edición <span className="text-red-500">*</span></label>
+          <input type="text" value={editMotivo} onChange={(e) => setEditMotivo(e.target.value)} placeholder="Explique por qué se edita este movimiento..." className="w-full bg-white border border-orange-300 px-3 py-2 text-xs focus:outline-none focus:border-orange-500 text-black" />
+        </div>
+        <div className="pt-4 border-t border-[#DEE2E6]">
+          <p className="text-[9px] font-bold text-[#999] uppercase tracking-widest mb-3">Credenciales de Administrador</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Usuario</label><input type="text" value={editAdminUser} onChange={(e) => setEditAdminUser(e.target.value)} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" placeholder="admin" /></div>
+            <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Contraseña</label>
+              <div className="relative">
+                <input type={showEditAdminPass ? 'text' : 'password'} value={editAdminPass} onChange={(e) => setEditAdminPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && guardarEdicionMovimiento()} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 pr-8 text-xs focus:outline-none focus:border-[#2B579A] text-black" placeholder="••••••••" />
+                <button type="button" onClick={() => setShowEditAdminPass(!showEditAdminPass)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#999]">{showEditAdminPass ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {editAdminError && (
+          <div className="bg-red-50 border border-red-200 p-3 flex items-center gap-2">
+            <AlertTriangle size={14} className="text-red-500 shrink-0" />
+            <p className="text-red-600 text-[10px] font-bold uppercase">{editAdminError}</p>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-4 mt-6">
+        <button onClick={() => { setDeleteConfirm({ type: 'movement', id: editingMovement.id, title: 'Eliminar Movimiento', message: '¿Está seguro de eliminar este movimiento? Esta acción no se puede deshacer.' }); setShowEditMovementModal(false); }} className="px-4 py-3 bg-red-50 border border-red-200 text-red-600 font-bold text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"><Trash2 size={14} /> Eliminar</button>
+        <button onClick={() => setShowEditMovementModal(false)} className="flex-1 py-3 border border-[#DEE2E6] text-[#999] font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
+        <button onClick={guardarEdicionMovimiento} disabled={editAdminLoading || !editAdminUser || !editAdminPass || !editMotivo.trim()} className={`flex-1 py-3 text-white font-bold text-[10px] uppercase tracking-widest transition-all ${editAdminLoading || !editAdminUser || !editAdminPass || !editMotivo.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#2B579A] hover:bg-[#1E3E6D]'}`}>
+          {editAdminLoading ? 'Verificando...' : 'Guardar Cambios'}
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+)}
       {/* Loading overlay */}
       {loadingData && (
         <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-[100]">
