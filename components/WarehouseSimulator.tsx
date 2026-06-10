@@ -1799,7 +1799,6 @@ const confirmarAdminAuth = async () => {
                           <th colSpan={3} className="px-4 py-3 text-center border-r border-[#DEE2E6] bg-[#E7EEF8]">Registro_Entrada</th>
                           <th colSpan={3} className="px-4 py-3 text-center border-r border-[#DEE2E6] bg-orange-50">Registro_Salida</th>
                           <th colSpan={3} className="px-4 py-3 text-center bg-[#2B579A]/5 border-r border-[#DEE2E6]">Estado_Saldo</th>
-                          <th rowSpan={2} className="px-4 py-4 text-center">Observaciones</th>
                           <th rowSpan={2} className="px-4 py-4 text-center">Acc.</th>
                         </tr>
                         <tr className="border-t border-[#DEE2E6] bg-gray-50">
@@ -1830,7 +1829,6 @@ const confirmarAdminAuth = async () => {
                               <td className="px-4 py-4 border-r border-[#DEE2E6] bg-[#2B579A]/5 text-[#2B579A] font-bold text-center">{line.cantidadSaldo}</td>
                               <td className="px-4 py-4 border-r border-[#DEE2E6] bg-[#2B579A]/5 text-[#2B579A]/70 text-center">{line.costoUnitarioSaldo.toFixed(4)}</td>
                               <td className="px-4 py-4 border-r border-[#DEE2E6] bg-[#2B579A]/5 text-[#2B579A] font-bold text-center">{line.costoTotalSaldo.toFixed(2)}</td>
-                              <td className="px-4 py-4 text-[#999] italic max-w-[150px] truncate" title={line.observaciones}>{line.observaciones || '-'}</td>
                               <td className="px-4 py-4 text-center">
                                 <button
                                   onClick={() => {
@@ -1852,7 +1850,39 @@ const confirmarAdminAuth = async () => {
                     </table>
                   </div>
                 </div>
-
+                {activoSeleccionadoId && ejecutarMotorKhipu(bitacoraOperaciones.filter(m => m.activoId === activoSeleccionadoId), protocoloActivo).some(l => l.observaciones) && (
+                <div className="bg-white border border-[#DEE2E6] shadow-sm overflow-hidden mt-4">
+                  <div className="bg-[#F8F9FA] px-8 py-4 border-b border-[#DEE2E6] flex justify-between items-center">
+                    <h4 className="font-sans font-bold text-sm uppercase tracking-tighter text-[#2B579A]">Registro de Observaciones y Ajustes</h4>
+                  </div>
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-white text-[8px] uppercase tracking-[0.2em] text-[#999] font-sans font-bold border-b border-[#DEE2E6]">
+                      <tr>
+                        <th className="px-8 py-4">Fecha</th>
+                        <th className="px-8 py-4">Serie-Número</th>
+                        <th className="px-8 py-4">Tipo</th>
+                        <th className="px-8 py-4">Observación / Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-[10px] font-sans divide-y divide-[#DEE2E6]">
+                      {ejecutarMotorKhipu(bitacoraOperaciones.filter(m => m.activoId === activoSeleccionadoId), protocoloActivo)
+                        .filter(l => l.observaciones)
+                        .map((line, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-8 py-4 text-[#999]">{line.fecha}</td>
+                            <td className="px-8 py-4 font-bold text-[#2B579A]">{line.serie}-{line.numero}</td>
+                            <td className="px-8 py-4">
+                              <span className={`text-[8px] font-bold uppercase px-2 py-1 border ${line.tipo === 'ENTRADA' ? 'bg-[#E7EEF8] border-[#2B579A]/20 text-[#2B579A]' : 'bg-orange-50 border-orange-200 text-[#F97316]'}`}>
+                                {line.tipo}
+                              </span>
+                            </td>
+                            <td className="px-8 py-4 text-[#333] italic">{line.observaciones}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}          
                 {resumenMensual.length > 0 && (
                   <div className="bg-white border border-[#DEE2E6] shadow-sm overflow-hidden mt-8">
                     <div className="bg-[#F8F9FA] px-8 py-5 border-b border-[#DEE2E6] flex justify-between items-center">
@@ -2369,10 +2399,6 @@ const confirmarAdminAuth = async () => {
         <div className="grid grid-cols-2 gap-4">
           <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Cantidad</label><input type="number" value={editingMovement.cantidad} onChange={(e) => setEditingMovement({...editingMovement, cantidad: parseFloat(e.target.value) || 0})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
           <div><label className="block text-[9px] font-bold text-[#999] uppercase mb-1">Costo Unitario</label><input type="number" step="0.0001" value={editingMovement.costoUnitario} onChange={(e) => setEditingMovement({...editingMovement, costoUnitario: parseFloat(e.target.value) || 0, costoTotal: (parseFloat(e.target.value) || 0) * editingMovement.cantidad})} className="w-full bg-[#F8F9FA] border border-[#DEE2E6] px-3 py-2 text-xs focus:outline-none focus:border-[#2B579A] text-black" /></div>
-        </div>
-        <div>
-          <label className="block text-[9px] font-bold text-orange-700 uppercase mb-1">Motivo de Edición <span className="text-red-500">*</span></label>
-          <input type="text" value={editMotivo} onChange={(e) => setEditMotivo(e.target.value)} placeholder="Explique por qué se edita este movimiento..." className="w-full bg-white border border-orange-300 px-3 py-2 text-xs focus:outline-none focus:border-orange-500 text-black" />
         </div>
         <div className="pt-4 border-t border-[#DEE2E6]">
           <p className="text-[9px] font-bold text-[#999] uppercase tracking-widest mb-3">Credenciales de Administrador</p>
