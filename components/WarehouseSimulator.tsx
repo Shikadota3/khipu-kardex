@@ -1422,7 +1422,7 @@ const confirmarAdminAuth = async () => {
         observaciones: `EDITADO ${format(new Date(), 'yyyy-MM-dd')} — ${editMotivo} | ${editingMovement.observaciones || ''}`
       };
       fetch('/api/movements', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...updatedOp, userId: currentUser?.id })
       }).catch(err => console.error('Error editando movimiento:', err));
