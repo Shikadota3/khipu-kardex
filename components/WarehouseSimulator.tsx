@@ -232,6 +232,7 @@ export default function WarehouseSimulator() {
   // --- ESTADOS DE MODALES Y FORMULARIOS ---
   const [showProductModal, setShowProductModal] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
+  const [isMovementFromAdjust, setIsMovementFromAdjust] = useState(false);
   const [showStockAlertModal, setShowStockAlertModal] = useState(false);
   const [showMovementReportModal, setShowMovementReportModal] = useState(false);
   const [showLowMovementModal, setShowLowMovementModal] = useState(false);
@@ -914,6 +915,15 @@ const confirmarAdminAuth = async () => {
       }
     });
     if (countAdj === 0) { alert("No hay diferencias reportadas en los activos listados."); return; }
+    if (!adjustmentObs.trim()) { alert("El campo 'Motivo del Ajuste' es obligatorio para procesar el ajuste."); return; }
+    // Guardar cada movimiento de ajuste en la base de datos
+    opsParaAsentar.forEach(op => {
+      fetch('/api/movements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...op, userId: currentUser?.id })
+      }).catch(err => console.error('Error guardando ajuste en BD:', err));
+    });
     setBitacoraOperaciones(prev => [...prev, ...opsParaAsentar]);
     alert(`Ajuste Procesado Exitosamente.\nSe registraron automáticamente ${countAdj} operaciones en la bitácora con el documento ${adjustmentSerie}-${correlativo}.`);
     setShowAdjustmentModal(false);
@@ -950,6 +960,7 @@ const confirmarAdminAuth = async () => {
     }));
     setStagedItems([...stagedItems, nuevaPartida]);
     setShowAdjustmentModal(false);
+    setIsMovementFromAdjust(true);
     setShowMovementModal(true);
     alert(`Trasladado al comprobante manual. Ahora puede revisar la partida '${p.nombre}' como ${tipo} antes de asentar.`);
   };
@@ -979,6 +990,7 @@ const confirmarAdminAuth = async () => {
       setBitacoraOperaciones(prev => [...prev, ...nuevasOperaciones]);
       setShowMovementModal(false);
       setStagedItems([]);
+      setIsMovementFromAdjust(false);
       setNuevaOperacion({ 
         tipo: 'ENTRADA', tipoDocumento: '01', tipoOperacion: '02', serie: 'F001', 
         numero: '', cantidad: 0, costoUnitario: 0, fecha: format(new Date(), 'yyyy-MM-dd'), observaciones: '' 
@@ -1994,7 +2006,7 @@ const confirmarAdminAuth = async () => {
                   <h3 className="text-2xl font-display font-bold tracking-tighter text-[#1A1A1A] uppercase">{showProductModal ? 'Registro de Activos' : 'Entrada de Operación Multi-Item'}</h3>
                   <p className="text-[10px] font-bold text-[#999] uppercase tracking-[0.2em] mt-1">{showProductModal ? 'Sistema de Catálogo v1.2' : 'Interfaz de Kardex v1.5 - Multi-Item'}</p>
                 </div>
-                <button onClick={() => { setShowProductModal(false); setShowMovementModal(false); setStagedItems([]); }} className="p-3 border border-[#DEE2E6] text-[#999] hover:text-[#2B579A] hover:border-[#2B579A]/50 transition-all"><X size={20} /></button>
+                <button onClick={() => { setShowProductModal(false); setShowMovementModal(false); setStagedItems([]); setIsMovementFromAdjust(false); }} className="p-3 border border-[#DEE2E6] text-[#999] hover:text-[#2B579A] hover:border-[#2B579A]/50 transition-all"><X size={20} /></button>
               </div>
 
               <div className="p-8">
@@ -2069,7 +2081,12 @@ const confirmarAdminAuth = async () => {
                         </div>
                       </div>
 
-                      <div className="space-y-4 border border-[#DEE2E6] p-5 relative">
+                      <div className={`space-y-4 border border-[#DEE2E6] p-5 relative ${isMovementFromAdjust ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                        {isMovementFromAdjust && (
+                          <div className="absolute inset-0 bg-gray-100/60 z-10 flex items-center justify-center">
+                            <span className="bg-orange-100 border border-orange-300 text-orange-700 text-[9px] font-bold uppercase tracking-widest px-3 py-2">Bloqueado — Item cargado desde ajuste</span>
+                          </div>
+                        )}
                         <h4 className="text-[10px] font-bold text-[#2B579A] uppercase tracking-widest flex items-center gap-2"><Package size={14} /> Seleccionar Item</h4>
                         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#999]" size={14} /><input type="text" placeholder="Buscar activo..." value={busquedaActivoModal} onChange={(e) => setBusquedaActivoModal(e.target.value)} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-sans rounded-none pl-9 pr-10 py-2 text-[11px] focus:outline-none focus:border-[#2B579A]" /></div>
                         <select value={activoSeleccionadoId} onChange={(e) => setActivoSeleccionadoId(e.target.value)} className="w-full bg-white border border-[#DEE2E6] text-[#1A1A1A] font-sans rounded-none px-3 py-2 text-[11px] focus:outline-none">
@@ -2131,7 +2148,7 @@ const confirmarAdminAuth = async () => {
                         <div className="flex justify-between items-center text-gray-600"><span className="font-bold uppercase tracking-wider text-[9px]">I.G.V. Total (18%):</span><span className="font-mono font-bold text-orange-600">S/ {stagedItems.filter(i => i.igvGrabado !== false).reduce((sum, i) => sum + (Math.round((i.costoTotal * 0.18 + Number.EPSILON) * 100) / 100), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                         <div className="flex justify-between items-center pt-2 border-t border-dashed border-[#DEE2E6] mb-4"><span className="font-bold uppercase tracking-wider text-[10px] text-[#2B579A]">Importe Total Completo:</span><span className="text-2xl font-display font-bold text-[#2B579A] tracking-tighter">S/ {stagedItems.reduce((sum, i) => { const isGrabado = i.igvGrabado !== false; const sub = i.costoTotal; const igvVal = isGrabado ? Math.round((sub * 0.18 + Number.EPSILON) * 100) / 100 : 0; return sum + sub + igvVal; }, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                         <div className="flex gap-4">
-                          <button onClick={() => { setShowMovementModal(false); setStagedItems([]); }} className="flex-1 py-4 border border-[#DEE2E6] text-[#999] font-bold text-[10px] uppercase tracking-widest hover:bg-white transition-all shadow-sm">CANCELAR</button>
+                          <button onClick={() => { setShowMovementModal(false); setStagedItems([]); setIsMovementFromAdjust(false); }} className="flex-1 py-4 border border-[#DEE2E6] text-[#999] font-bold text-[10px] uppercase tracking-widest hover:bg-white transition-all shadow-sm">CANCELAR</button>
                           <button onClick={asentarOperacionKardex} disabled={stagedItems.length === 0 || !nuevaOperacion.numero} className={`flex-1 py-4 text-white font-bold text-[10px] uppercase tracking-widest transition-all shadow-lg ${stagedItems.length === 0 || !nuevaOperacion.numero ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#2B579A] hover:bg-[#1E3E6D] hover:scale-[1.02] active:scale-[0.98]'}`}>PROCESAR_COMPROBANTE</button>
                         </div>
                       </div>
