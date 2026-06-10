@@ -1850,7 +1850,7 @@ const confirmarAdminAuth = async () => {
                     </table>
                   </div>
                 </div>
-                {activoSeleccionadoId && ejecutarMotorKhipu(bitacoraOperaciones.filter(m => m.activoId === activoSeleccionadoId), protocoloActivo).some(l => l.observaciones) && (
+                {activoSeleccionadoId && ejecutarMotorKhipu(bitacoraOperaciones.filter(m => m.activoId === activoSeleccionadoId), protocoloActivo).some(l => l.observaciones && l.observaciones.trim() !== '') && (
                 <div className="bg-white border border-[#DEE2E6] shadow-sm overflow-hidden mt-4">
                   <div className="bg-[#F8F9FA] px-8 py-4 border-b border-[#DEE2E6] flex justify-between items-center">
                     <h4 className="font-sans font-bold text-sm uppercase tracking-tighter text-[#2B579A]">Registro de Observaciones y Ajustes</h4>
