@@ -2180,7 +2180,7 @@ const confirmarAdminAuth = async () => {
                           <input
                             type="text"
                             value={nuevaOperacion.observaciones || ''}
-                            onChange={(e) => setNuevaOperacion({...nuevaOperacion, observaciones: `AJUSTE ${nuevaOperacion.fecha} — ${e.target.value}`})}
+                            onChange={(e) => setNuevaOperacion({...nuevaOperacion, observaciones: e.target.value})}
                             placeholder="Describa el motivo del ajuste..."
                             className="w-full bg-white border border-orange-300 text-[#1A1A1A] font-sans px-3 py-2 text-[11px] focus:outline-none focus:border-orange-500"
                           />
