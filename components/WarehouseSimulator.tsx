@@ -226,7 +226,7 @@ export default function WarehouseSimulator() {
   const [adjustmentSerie, setAdjustmentSerie] = useState('AJUS');
   const [adjustmentNumero, setAdjustmentNumero] = useState('');
   const [adjustmentFecha, setAdjustmentFecha] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [adjustmentObs, setAdjustmentObs] = useState('Ajuste de inventario físico valorizado');
+  const [adjustmentObs, setAdjustmentObs] = useState('');
   const [filterAdjustmentSearch, setFilterAdjustmentSearch] = useState('');
 
   // --- ESTADOS DE MODALES Y FORMULARIOS ---
@@ -971,7 +971,7 @@ const confirmarAdminAuth = async () => {
       serie: adjustmentSerie,
       numero: adjustmentNumero || Math.floor(100000 + Math.random() * 900000).toString(),
       fecha: adjustmentFecha,
-      observaciones: `${adjustmentObs} [MANUAL AJUSTE: ${p.codigo}]`
+      observaciones: adjustmentObs
     }));
     setStagedItems([...stagedItems, nuevaPartida]);
     setShowAdjustmentModal(false);
