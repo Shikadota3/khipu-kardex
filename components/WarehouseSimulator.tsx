@@ -245,6 +245,8 @@ export default function WarehouseSimulator() {
   const [adminAuthLoading, setAdminAuthLoading] = useState(false);
   const [showAdminAuthPass, setShowAdminAuthPass] = useState(false);
   const [pendingAjuste, setPendingAjuste] = useState(false);
+  const [showMotivoModal, setShowMotivoModal] = useState(false);
+  const [motivoTemp, setMotivoTemp] = useState('');
   const [editingMovement, setEditingMovement] = useState<OperacionKardex | null>(null);
   const [editMotivo, setEditMotivo] = useState('');
   const [showEditMovementModal, setShowEditMovementModal] = useState(false);
@@ -862,15 +864,8 @@ export default function WarehouseSimulator() {
     doc.save(`Comprobante_${nuevaOperacion.serie}_${nuevaOperacion.numero}.pdf`);
   };
   const verificarAdminYAjustar = () => {
-  if (!adjustmentObs.trim()) {
-    alert("El campo 'Motivo del Ajuste' es obligatorio antes de procesar.");
-    return;
-  }
-  setPendingAjuste(true);
-  setAdminAuthUser('');
-  setAdminAuthPass('');
-  setAdminAuthError('');
-  setShowAdminAuthModal(true);
+  setMotivoTemp('');
+  setShowMotivoModal(true);
 };
 
 const confirmarAdminAuth = async () => {
@@ -2331,6 +2326,51 @@ const confirmarAdminAuth = async () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {showMotivoModal && (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[80] p-6">
+    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white border border-[#DEE2E6] p-10 max-w-sm w-full shadow-2xl rounded-none relative">
+      <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#F97316]"></div>
+      <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[#F97316]"></div>
+      <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#F97316]"></div>
+      <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#F97316]"></div>
+      <div className="w-14 h-14 border border-orange-100 bg-orange-50 text-[#F97316] flex items-center justify-center mb-6 mx-auto">
+        <FileText size={28} />
+      </div>
+      <h3 className="text-xl font-sans font-bold tracking-tighter text-[#1A1A1A] uppercase text-center mb-2">Motivo del Ajuste</h3>
+      <p className="text-[10px] text-[#999] uppercase tracking-widest text-center mb-6 font-bold">Describa el motivo por el cual se realiza este ajuste de inventario</p>
+      <div className="space-y-4">
+        <textarea
+          value={motivoTemp}
+          onChange={(e) => setMotivoTemp(e.target.value)}
+          placeholder="Ej: Conteo físico mensual, merma detectada, corrección de error..."
+          rows={4}
+          className="w-full bg-[#F8F9FA] border border-orange-300 px-4 py-3 text-sm focus:outline-none focus:border-orange-500 text-black resize-none"
+        />
+      </div>
+      <div className="flex gap-4 mt-6">
+        <button onClick={() => setShowMotivoModal(false)} className="flex-1 py-3 border border-[#DEE2E6] text-[#999] font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all">Cancelar</button>
+        <button
+          onClick={() => {
+            if (!motivoTemp.trim()) {
+              alert('El motivo del ajuste es obligatorio.');
+              return;
+            }
+            setAdjustmentObs(motivoTemp);
+            setShowMotivoModal(false);
+            setPendingAjuste(true);
+            setAdminAuthUser('');
+            setAdminAuthPass('');
+            setAdminAuthError('');
+            setShowAdminAuthModal(true);
+          }}
+          className="flex-1 py-3 bg-[#F97316] text-white font-bold text-[10px] uppercase tracking-widest hover:bg-[#EA580C] transition-all"
+        >
+          Continuar
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+)}
         {showAdminAuthModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[80] p-6">
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white border border-[#DEE2E6] p-10 max-w-sm w-full shadow-2xl rounded-none relative">
